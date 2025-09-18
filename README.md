@@ -35,7 +35,7 @@ Edit the `appsettings.json` and set the following:
 
 ```json
 "StorageType": "InMemory"
-
+```
 
 ## Autor
 
