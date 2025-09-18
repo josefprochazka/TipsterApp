@@ -1,0 +1,347 @@
+﻿@rendermode InteractiveServer
+@using TipsterApp.Data
+@inject ITipStorage TipStorage
+@page "/tabletip"
+
+<div class="tip-mainbox">
+    <h2 class="tip-title">💸 Spropitné v kavárně ☕</h2>
+
+    @if (highestTip != null)
+    {
+        <div class="tip-info-box">
+            <strong>Nejvyšší tip dne:</strong>
+            @highestTip.TipAmount Kč (@highestTip.TipPercent %)
+            – @highestTip.Inserted.ToString("g")
+            @if (!string.IsNullOrEmpty(highestTip.Email))
+            {
+                <span style="font-size:smaller;">(@highestTip.Email)</span>
+            }
+        </div>
+    }
+
+    @if (model.BillAmount > 0 && model.TipAmount > 0)
+    {
+        <div class="tip-info-box tip-info-blue">
+            <strong>Celková částka k úhradě (účet + tip):</strong>
+            @(model.BillAmount + model.TipAmount) Kč
+        </div>
+    }
+
+    <div class="tip-edit-box">
+        <label>Zadej číslo stolu pro úpravu:</label>
+        <InputNumber @bind-Value="searchTableId" class="tip-input-small" />
+        <button class="tip-btn" @onclick="LoadTip">Načíst</button>
+    </div>
+
+    <EditForm Model="@model" OnValidSubmit="HandleValidSubmit" FormName="tableTipForm1">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="tip-input-row">
+            <label>Číslo stolu:</label>
+            <InputNumber @bind-Value="model.TableId" class="tip-input-small" Min="1" required />
+            <ValidationMessage For="@(() => model.TableId)" />
+        </div>
+        <div class="tip-input-row">
+            <label>Účet (částka):</label>
+            <InputNumber @bind-Value="model.BillAmount" class="tip-input-small" Min="0.01" step="0.01" required />
+            <span> Kč</span>
+            <ValidationMessage For="@(() => model.BillAmount)" />
+        </div>
+        <div class="tip-input-row">
+            <label>Spropitné:</label>
+            <div class="tip-btn-group">
+                <button type="button" class="tip-btn tip-btn-percent" @onclick="() => SetTipPercent(2)">2 %</button>
+                <button type="button" class="tip-btn tip-btn-percent" @onclick="() => SetTipPercent(5)">5 %</button>
+                <button type="button" class="tip-btn tip-btn-percent" @onclick="() => SetTipPercent(10)">10 %</button>
+                <button type="button" class="tip-btn tip-btn-percent" @onclick="() => SetTipPercent(20)">20 %</button>
+                <button type="button" class="tip-btn tip-btn-percent" @onclick="() => SetTipPercent(30)">30 %</button>
+                <button type="button" class="tip-btn tip-btn-percent" @onclick="() => SetTipPercent(0)">Vlastní částka</button>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    @if (selectedTipPercent > 0)
+                    {
+                        <InputNumber @bind-Value="model.TipAmount" readonly class="tip-input-small" style="background:#e0ffe0;" />
+                    }
+                    else
+                    {
+                        <input type="number" @bind-value="customTip" @oninput="OnCustomTipChanged" min="0.01" step="0.01" placeholder="Vlastní částka" class="tip-input-small" />
+                    }
+                    <span>Kč</span>
+                </div>
+            </div>
+            <ValidationMessage For="@(() => model.TipAmount)" />
+        </div>
+        <div class="tip-input-row">
+            <label>Email:</label>
+            <InputText @bind-Value="model.Email" type="email" required class="tip-input-medium" />
+            <ValidationMessage For="@(() => model.Email)" />
+        </div>
+        <div class="tip-input-row">
+            <label>Hodnocení (1–5):</label>
+            <InputNumber @bind-Value="model.Rating" Min="1" Max="5" required class="tip-input-small" />
+            <ValidationMessage For="@(() => model.Rating)" />
+        </div>
+        <button type="submit" class="tip-btn-submit">Odeslat 🎯</button>
+        <button type="button" class="tip-btn-submit" style="margin-left: 10px;" @onclick="ResetForm">Zadat nový záznam</button>
+    </EditForm>
+
+    @if (!string.IsNullOrEmpty(infoMsg))
+    {
+        <div class="tip-info-green">@infoMsg</div>
+    }
+</div>
+
+<style>
+    .tip-mainbox {
+        background: #fffbe7;
+        border-radius: 18px;
+        padding: 32px 24px 24px 24px;
+        max-width: 540px;
+        margin: 30px auto 0 auto;
+        box-shadow: 0 4px 16px #e3e3e3;
+    }
+
+    .tip-title {
+        color: #ff0080;
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 2.2rem;
+        font-weight: bold;
+        letter-spacing: 1px;
+        text-shadow: 1px 1px 5px #ffe0f0;
+    }
+
+    .tip-info-box {
+        background: #e0ffe0;
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin-bottom: 12px;
+        font-size: 1.08rem;
+    }
+
+    .tip-info-blue {
+        background: #e0eaff;
+    }
+
+    .tip-info-green {
+        margin-top: 18px;
+        padding: 10px 18px;
+        background: #e0ffe0;
+        color: #008000;
+        border-radius: 8px;
+        font-weight: bold;
+        text-align: center;
+        font-size: 1.1rem;
+    }
+
+    .tip-edit-box {
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .tip-input-row {
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .tip-btn-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .tip-input-small {
+        width: 60px;
+        border-radius: 6px;
+        border: 1px solid #aaa;
+        padding: 3px 6px;
+    }
+
+    .tip-input-medium {
+        width: 180px;
+        border-radius: 6px;
+        border: 1px solid #aaa;
+        padding: 3px 6px;
+    }
+
+    .tip-btn {
+        background: #ffe0f0;
+        color: #ff0080;
+        border: none;
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+        .tip-btn:hover {
+            background: #ffb3d1;
+        }
+
+    .tip-btn-percent {
+        min-width: 48px;
+    }
+
+    .tip-btn-submit {
+        background: #ff0080;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 24px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        margin-top: 10px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px #ffd6e6;
+        transition: background 0.2s;
+    }
+
+        .tip-btn-submit:hover {
+            background: #d6006e;
+        }
+
+    <style >
+    .tip-btn-reset {
+        background: #0080ff;
+        color: white;
+        border-radius: 8px;
+        padding: 8px 16px;
+        margin-left: 10px;
+        cursor: pointer;
+    }
+</style>
+
+</style>
+
+@code {
+    TipRecord model = new TipRecord();
+    int selectedTipPercent;
+    decimal customTip;
+    int searchTableId;
+    string infoMsg = "";
+
+    TipRecord? highestTip;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHighestTip();
+    }
+
+    async Task LoadHighestTip()
+    {
+        var tips = await TipStorage.GetAllAsync();
+        highestTip = tips.OrderByDescending(t => t.TipAmount).FirstOrDefault();
+    }
+
+    async Task LoadTip()
+    {
+        var tips = await TipStorage.GetAllAsync();
+        var found = tips.FirstOrDefault(t => t.TableId == searchTableId);
+
+        if (found != null)
+        {
+            model = new TipRecord
+            {
+                TableId = found.TableId,
+                BillAmount = found.BillAmount,
+                TipAmount = found.TipAmount,
+                TipPercent = found.TipPercent,
+                Email = found.Email,
+                Rating = found.Rating,
+                Inserted = found.Inserted,
+                Updated = found.Updated,
+                IsActive = found.IsActive
+            };
+            selectedTipPercent = found.TipPercent;
+            customTip = found.TipPercent == 0 ? found.TipAmount : 0;
+            infoMsg = "Záznam načten, můžeš upravit a uložit.";
+        }
+        else
+        {
+            model = new TipRecord { TableId = searchTableId };
+            selectedTipPercent = 0;
+            customTip = 0;
+            infoMsg = "Pro tento stůl zatím žádný záznam není, můžeš zadat nový.";
+        }
+        await LoadHighestTip();
+    }
+
+    void SetTipPercent(int percent)
+    {
+        selectedTipPercent = percent;
+        if (percent > 0 && model.BillAmount > 0)
+        {
+            model.TipAmount = Math.Round(model.BillAmount * percent / 100, 2);
+            model.TipPercent = percent;
+            customTip = model.TipAmount;
+        }
+        else
+        {
+            model.TipAmount = 0;
+            model.TipPercent = 0;
+            customTip = 0;
+        }
+        StateHasChanged();
+    }
+
+
+    void OnCustomTipChanged(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var value))
+        {
+            customTip = value;
+            model.TipAmount = customTip;
+            selectedTipPercent = 0;
+            if (model.BillAmount > 0)
+            {
+                model.TipPercent = (int)Math.Round(100 * model.TipAmount / model.BillAmount);
+            }
+            else
+            {
+                model.TipPercent = 0;
+            }
+        }
+        else
+        {
+            customTip = 0;
+            model.TipAmount = 0;
+            model.TipPercent = 0;
+        }
+    }
+
+
+    private async Task HandleValidSubmit()
+    {
+        model.Inserted = model.Inserted == default ? DateTime.Now : model.Inserted;
+        model.Updated = DateTime.Now;
+        model.IsActive = true;
+
+        await TipStorage.AddOrUpdateAsync(model);
+        infoMsg = "Záznam uložen.";
+
+        await LoadHighestTip();
+    }
+
+    void ResetForm()
+    {
+        model = new TipRecord();
+        selectedTipPercent = 0;
+        customTip = 0;
+        infoMsg = "";
+
+        var rnd = new Random();
+        model.BillAmount = rnd.Next(60, 300);
+    }
+
+    protected override void OnInitialized()
+    {
+        var rnd = new Random();
+        model.BillAmount = rnd.Next(60, 300);
+    }
+
+}
